@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruthLens - Content Authenticity Verifier</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Particle Background -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+                <span class="logo-text">TruthLens</span>
+            </div>
+            <div class="nav-links">
+                <a href="#home" class="nav-link active">Home</a>
+                <a href="#verify" class="nav-link">Verify</a>
+                <a href="#how-it-works" class="nav-link">How It Works</a>
+                <a href="#about" class="nav-link">About</a>
+            </div>
+            <div class="nav-actions">
+                <button class="theme-toggle" id="themeToggle" title="Toggle Theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="scrollToVerify()">
+                    Start Verifying <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+            <div class="mobile-toggle" id="mobileToggle">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-sparkles"></i>
+                AI-Powered Content Verification
+            </div>
+            <h1 class="hero-title">
+                Don't Get <span class="gradient-text">Deceived</span> by
+                <span class="typing-text" id="typingText"></span>
+            </h1>
+            <p class="hero-subtitle">
+                Instantly verify the authenticity of text articles and images using advanced AI models.
+                Protect yourself from misinformation, deepfakes, and AI-generated content.
+            </p>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <span class="stat-number" data-target="95">0</span><span class="stat-suffix">%</span>
+                    <span class="stat-label">Detection Accuracy</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" data-target="2">0</span><span class="stat-suffix">s</span>
+                    <span class="stat-label">Avg Analysis Time</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" data-target="10">0</span><span class="stat-suffix">K+</span>
+                    <span class="stat-label">Scans Completed</span>
+                </div>
+            </div>
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-lg" onclick="scrollToVerify()">
+                    <i class="fas fa-search"></i> Verify Content Now
+                </button>
+                <button class="btn btn-outline btn-lg" onclick="scrollToHowItWorks()">
+                    <i class="fas fa-play-circle"></i> See How It Works
+                </button>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="floating-card card-1">
+                <i class="fas fa-check-circle"></i>
+                <span>Authentic Content</span>
+            </div>
+            <div class="floating-card card-2">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>AI Generated</span>
+            </div>
+            <div class="floating-card card-3">
+                <i class="fas fa-robot"></i>
+                <span>Deepfake Detected</span>
+            </div>
+            <div class="shield-animation">
+                <div class="shield-ring ring-1"></div>
+                <div class="shield-ring ring-2"></div>
+                <div class="shield-ring ring-3"></div>
+                <div class="shield-center">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Verification Section -->
+    <section class="verify-section" id="verify">
+        <div class="section-header">
+            <h2 class="section-title">Verify Your Content</h2>
+            <p class="section-subtitle">Choose your content type and let our AI analyze its authenticity</p>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="tab-container">
+            <div class="tab-switcher">
+                <button class="tab-btn active" data-tab="text" id="textTab">
+                    <i class="fas fa-file-text"></i>
+                    <span>Text / Article</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button class="tab-btn" data-tab="image" id="imageTab">
+                    <i class="fas fa-image"></i>
+                    <span>Image</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <div class="tab-slider"></div>
+            </div>
+        </div>
+
+        <!-- Text Verification Panel -->
+        <div class="verify-panel active" id="textPanel">
+            <div class="panel-grid">
+                <div class="input-area">
+                    <div class="input-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-pencil-alt"></i> Input Text</h3>
+                            <div class="char-count">
+                                <span id="charCount">0</span> / 10,000 characters
+                            </div>
+                        </div>
+                        <textarea
+                            id="textInput"
+                            class="text-input"
+                            placeholder="Paste your article, news text, or any content here to verify its authenticity...
+
+Example: Paste a news article, social media post, or any text you want to check for AI generation."
+                            maxlength="10000"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button class="btn btn-ghost" onclick="clearText()">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                            <button class="btn btn-ghost" onclick="pasteText()">
+                                <i class="fas fa-paste"></i> Paste
+                            </button>
+                            <button class="btn btn-ghost" onclick="loadSampleText()">
+                                <i class="fas fa-flask"></i> Sample
+                            </button>
+                            <button class="btn btn-primary" id="analyzeTextBtn" onclick="analyzeText()">
+                                <i class="fas fa-search"></i> Analyze Text
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- URL Input -->
+                    <div class="input-card url-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-link"></i> Or Enter URL</h3>
+                        </div>
+                        <div class="url-input-group">
+                            <input type="url" id="urlInput" class="url-input" placeholder="https://example.com/article">
+                            <button class="btn btn-primary" onclick="fetchFromURL()">
+                                <i class="fas fa-download"></i> Fetch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-area" id="textResults">
+                    <div class="results-placeholder">
+                        <div class="placeholder-icon">
+                            <i class="fas fa-microscope"></i>
+                        </div>
+                        <h3>Ready to Analyze</h3>
+                        <p>Enter text or a URL and click "Analyze" to check content authenticity</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Verification Panel -->
+        <div class="verify-panel" id="imagePanel">
+            <div class="panel-grid">
+                <div class="input-area">
+                    <div class="input-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-upload"></i> Upload Image</h3>
+                        </div>
+                        <div class="upload-zone" id="uploadZone">
+                            <input type="file" id="imageInput" accept="image/*" hidden>
+                            <div class="upload-content" id="uploadContent">
+                                <div class="upload-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <h3>Drag & Drop your image here</h3>
+                                <p>or click to browse files</p>
+                                <span class="upload-formats">Supports: JPG, PNG, WEBP (Max 10MB)</span>
+                            </div>
+                            <div class="image-preview" id="imagePreview" style="display:none;">
+                                <img id="previewImg" src="" alt="Preview">
+                                <button class="remove-image" onclick="removeImage(event)">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="input-actions">
+                            <button class="btn btn-ghost" onclick="removeImage()">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                            <button class="btn btn-ghost" onclick="loadSampleImage()">
+                                <i class="fas fa-flask"></i> Sample
+                            </button>
+                            <button class="btn btn-primary" id="analyzeImageBtn" onclick="analyzeImage()">
+                                <i class="fas fa-search"></i> Analyze Image
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Image URL Input -->
+                    <div class="input-card url-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-link"></i> Or Enter Image URL</h3>
+                        </div>
+                        <div class="url-input-group">
+                            <input type="url" id="imageUrlInput" class="url-input" placeholder="https://example.com/image.jpg">
+                            <button class="btn btn-primary" onclick="fetchImageFromURL()">
+                                <i class="fas fa-download"></i> Load
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-area" id="imageResults">
+                    <div class="results-placeholder">
+                        <div class="placeholder-icon">
+                            <i class="fas fa-camera-retro"></i>
+                        </div>
+                        <h3>Ready to Analyze</h3>
+                        <p>Upload an image or enter a URL to check for deepfakes and AI manipulation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-header">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">Our multi-layered AI approach ensures maximum accuracy</p>
+        </div>
+        <div class="steps-container">
+            <div class="step-card" data-step="1">
+                <div class="step-number">01</div>
+                <div class="step-icon"><i class="fas fa-upload"></i></div>
+                <h3>Upload Content</h3>
+                <p>Paste text, enter a URL, or upload an image you want to verify</p>
+            </div>
+            <div class="step-connector"><i class="fas fa-arrow-right"></i></div>
+            <div class="step-card" data-step="2">
+                <div class="step-number">02</div>
+                <div class="step-icon"><i class="fas fa-brain"></i></div>
+                <h3>AI Analysis</h3>
+                <p>Multiple AI models analyze patterns, linguistics, and pixel-level data</p>
+            </div>
+            <div class="step-connector"><i class="fas fa-arrow-right"></i></div>
+            <div class="step-card" data-step="3">
+                <div class="step-number">03</div>
+                <div class="step-icon"><i class="fas fa-chart-pie"></i></div>
+                <h3>Get Results</h3>
+                <p>Receive a detailed authenticity report with confidence scores</p>
+            </div>
+        </div>
+
+        <!-- Technology Cards -->
+        <div class="tech-grid">
+            <div class="tech-card">
+                <div class="tech-icon"><i class="fas fa-language"></i></div>
+                <h4>NLP Analysis</h4>
+                <p>Advanced natural language processing to detect AI writing patterns</p>
+            </div>
+            <div class="tech-card">
+                <div class="tech-icon"><i class="fas fa-eye"></i></div>
+                <h4>Computer Vision</h4>
+                <p>Pixel-level analysis to identify manipulated or generated images</p>
+            </div>
+            <div class="tech-card">
+                <div class="tech-icon"><i class="fas fa-network-wired"></i></div>
+                <h4>Neural Networks</h4>
+                <p>Deep learning models trained on millions of real and fake samples</p>
+            </div>
+            <div class="tech-card">
+                <div class="tech-icon"><i class="fas fa-database"></i></div>
+                <h4>Fact Database</h4>
+                <p>Cross-reference with known misinformation and fact-check databases</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about-section" id="about">
+        <div class="section-header">
+            <h2 class="section-title">About TruthLens</h2>
+            <p class="section-subtitle">Empowering users to fight misinformation</p>
+        </div>
+        <div class="about-content">
+            <div class="about-text">
+                <p>In an era where AI-generated content is becoming indistinguishable from human-created content, TruthLens provides a critical layer of defense for everyday internet users.</p>
+                <p>Our platform leverages state-of-the-art machine learning models from Hugging Face and specialized deepfake detection APIs to provide instant, accurate content verification.</p>
+                <div class="about-features">
+                    <div class="feature-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Free to use for everyone</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>No account required</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Privacy-first approach</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Open-source AI models</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div class="logo">
+                    <div class="logo-icon"><i class="fas fa-shield-halved"></i></div>
+                    <span class="logo-text">TruthLens</span>
+                </div>
+                <p>Empowering digital trust through AI-powered content verification.</p>
+            </div>
+            <div class="footer-links">
+                <h4>Quick Links</h4>
+                <a href="#home">Home</a>
+                <a href="#verify">Verify</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#about">About</a>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <a href="#">API Documentation</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Contact Us</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 TruthLens. Built for Digital Trust Hackathon.</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <i class="fas fa-shield-halved spinner-icon"></i>
+            </div>
+            <h3 id="loadingTitle">Analyzing Content...</h3>
+            <p id="loadingSubtitle">Running AI models to verify authenticity</p>
+            <div class="loading-progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="loading-steps" id="loadingSteps">
+                <div class="loading-step active" id="step1">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                    <span>Preprocessing content...</span>
+                </div>
+                <div class="loading-step" id="step2">
+                    <i class="fas fa-circle"></i>
+                    <span>Running AI detection models...</span>
+                </div>
+                <div class="loading-step" id="step3">
+                    <i class="fas fa-circle"></i>
+                    <span>Generating report...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- API Key Modal -->
+    <div class="modal-overlay" id="apiKeyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> API Configuration</h3>
+                <button class="modal-close" onclick="closeApiModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Enter your Hugging Face API key to enable AI-powered analysis. Get your free API key from <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co</a></p>
+                <div class="form-group">
+                    <label for="apiKeyInput">Hugging Face API Token</label>
+                    <div class="api-key-input-group">
+                        <input type="password" id="apiKeyInput" placeholder="hf_xxxxxxxxxxxxxxxxx">
+                        <button class="btn btn-ghost" onclick="toggleApiKeyVisibility()">
+                            <i class="fas fa-eye" id="apiKeyEyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="saveApiKey"> Save key locally (encrypted in browser)
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeApiModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveApiKey()">
+                    <i class="fas fa-save"></i> Save & Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/textAnalyzer.js"></script>
+    <script src="js/imageAnalyzer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
