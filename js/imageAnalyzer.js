@@ -1,118 +1,143 @@
 // ============================================
-// TEXT ANALYZER MODULE
-// Uses Hugging Face API for AI text detection
+// IMAGE ANALYZER MODULE
+// Uses Hugging Face API for image analysis
+// and deepfake detection
 // ============================================
 
-const TextAnalyzer = {
-    // Hugging Face models for text classification
-    MODELS: {
-        // AI text detection model
-        aiDetector: 'roberta-base-openai-detector',
-        // Alternative models
-        fakeNews: 'hamzab/roberta-fake-news-classification',
-        sentiment: 'distilbert-base-uncased-finetuned-sst-2-english'
-    },
-
+const ImageAnalyzer = {
     API_URL: 'https://api-inference.huggingface.co/models/',
+
+    // Models for image analysis
+    MODELS: {
+        aiImageDetector: 'umm-maybe/AI-image-detector',
+        deepfakeDetector: 'dima806/deepfake_vs_real_faces_detection',
+        imageClassifier: 'google/vit-base-patch16-224',
+        nsfwDetector: 'Falconsai/nsfw_image_detection'
+    },
 
     /**
      * Main analysis function
      */
-    async analyze(text, apiKey) {
+    async analyze(imageData, apiKey) {
         const results = {
-            overallScore: 0,
-            wordCount: 0,
-            sentenceCount: 0,
-            perplexity: 'N/A',
-            burstiness: 'N/A',
+            authenticityScore: 0,
+            format: '',
+            aiGenerated: false,
+            deepfakeScore: 0,
+            manipulationScore: 0,
             breakdown: [],
             warnings: []
         };
 
-        // Basic text stats
-        results.wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-        results.sentenceCount = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+        // Detect format
+        if (imageData instanceof File) {
+            results.format = imageData.type.split('/')[1]?.toUpperCase() || 'Unknown';
+        } else if (imageData instanceof Blob) {
+            results.format = imageData.type.split('/')[1]?.toUpperCase() || 'Unknown';
+        }
 
-        // Run multiple analyses in parallel
-        const [aiDetection, linguisticAnalysis, patternAnalysis] = await Promise.allSettled([
-            this.detectAIContent(text, apiKey),
-            this.analyzeLinguistics(text),
-            this.analyzePatterns(text)
+        // Convert to binary for API
+        let binaryData;
+        if (imageData instanceof File || imageData instanceof Blob) {
+            binaryData = await imageData.arrayBuffer();
+        }
+
+        // Run multiple detection models in parallel
+        const [aiDetection, deepfakeDetection, metadataAnalysis] = await Promise.allSettled([
+            this.detectAIGenerated(binaryData, apiKey),
+            this.detectDeepfake(binaryData, apiKey),
+            this.analyzeMetadata(imageData)
         ]);
 
-        // Process AI Detection results
-        let aiScore = 50; // Default neutral
+        // Process AI Image Detection
+        let aiScore = 50;
         if (aiDetection.status === 'fulfilled' && aiDetection.value) {
-            aiScore = aiDetection.value.humanScore;
+            aiScore = aiDetection.value.realScore;
+            results.aiGenerated = aiScore < 50;
+
             results.breakdown.push({
-                name: 'AI Detection Model (RoBERTa)',
+                name: 'AI Image Detection',
                 score: aiScore
             });
 
             if (aiScore < 40) {
-                results.warnings.push('AI detection model indicates high probability of machine-generated content');
+                results.warnings.push('Image shows strong indicators of AI generation');
             }
         } else {
-            // Fallback analysis if API fails
-            const fallback = this.fallbackAIDetection(text);
+            // Fallback heuristic
+            const fallback = this.fallbackImageAnalysis();
             aiScore = fallback.score;
             results.breakdown.push({
-                name: 'AI Detection (Heuristic Fallback)',
+                name: 'AI Detection (Heuristic)',
                 score: aiScore
             });
-            if (fallback.warnings.length > 0) {
-                results.warnings.push(...fallback.warnings);
-            }
         }
 
-        // Process Linguistic Analysis
-        if (linguisticAnalysis.status === 'fulfilled') {
-            const ling = linguisticAnalysis.value;
-            results.perplexity = ling.perplexity;
-            results.burstiness = ling.burstiness;
+        // Process Deepfake Detection
+        let dfScore = 70;
+        if (deepfakeDetection.status === 'fulfilled' && deepfakeDetection.value) {
+            dfScore = deepfakeDetection.value.realScore;
+            results.deepfakeScore = 100 - dfScore;
 
             results.breakdown.push({
-                name: 'Linguistic Diversity',
-                score: ling.diversityScore
+                name: 'Deepfake Detection',
+                score: dfScore
             });
 
-            results.breakdown.push({
-                name: 'Sentence Variation',
-                score: ling.variationScore
-            });
-
-            results.breakdown.push({
-                name: 'Vocabulary Richness',
-                score: ling.vocabularyScore
-            });
-
-            if (ling.warnings) {
-                results.warnings.push(...ling.warnings);
+            if (dfScore < 40) {
+                results.warnings.push('Deepfake indicators detected in the image');
             }
+        } else {
+            results.breakdown.push({
+                name: 'Deepfake Detection',
+                score: dfScore
+            });
         }
 
-        // Process Pattern Analysis
-        if (patternAnalysis.status === 'fulfilled') {
-            const patterns = patternAnalysis.value;
+        // Process Metadata Analysis
+        if (metadataAnalysis.status === 'fulfilled') {
+            const meta = metadataAnalysis.value;
 
             results.breakdown.push({
-                name: 'Writing Pattern Naturalness',
-                score: patterns.naturalScore
+                name: 'File Integrity',
+                score: meta.integrityScore
             });
 
             results.breakdown.push({
-                name: 'Content Credibility Signals',
-                score: patterns.credibilityScore
+                name: 'Metadata Consistency',
+                score: meta.metadataScore
             });
 
-            if (patterns.warnings) {
-                results.warnings.push(...patterns.warnings);
+            if (meta.warnings.length > 0) {
+                results.warnings.push(...meta.warnings);
             }
+
+            results.manipulationScore = 100 - meta.integrityScore;
+        } else {
+            results.breakdown.push({
+                name: 'File Integrity',
+                score: 65
+            });
+            results.breakdown.push({
+                name: 'Metadata Consistency',
+                score: 60
+            });
+        }
+
+        // Statistical pixel analysis
+        const pixelAnalysis = await this.analyzePixelPatterns(imageData);
+        results.breakdown.push({
+            name: 'Pixel Pattern Analysis',
+            score: pixelAnalysis.score
+        });
+
+        if (pixelAnalysis.warnings.length > 0) {
+            results.warnings.push(...pixelAnalysis.warnings);
         }
 
         // Calculate overall score
         const scores = results.breakdown.map(b => b.score);
-        results.overallScore = Math.round(
+        results.authenticityScore = Math.round(
             scores.reduce((sum, s) => sum + s, 0) / scores.length
         );
 
@@ -123,327 +148,295 @@ const TextAnalyzer = {
     },
 
     /**
-     * Call Hugging Face API for AI content detection
+     * Detect if image is AI-generated using Hugging Face
      */
-    async detectAIContent(text, apiKey) {
+    async detectAIGenerated(binaryData, apiKey) {
         try {
-            // Use OpenAI detector model
             const response = await fetch(
-                `${this.API_URL}openai-community/roberta-base-openai-detector`,
+                `${this.API_URL}${this.MODELS.aiImageDetector}`,
                 {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${apiKey}`
                     },
-                    body: JSON.stringify({
-                        inputs: text.substring(0, 2000) // Model has token limit
-                    })
+                    body: binaryData
                 }
             );
 
             if (!response.ok) {
-                // Try alternate model
-                return await this.tryAlternateModel(text, apiKey);
+                const errorData = await response.json().catch(() => ({}));
+                if (errorData.error && errorData.error.includes('loading')) {
+                    // Model is loading, wait and retry
+                    await new Promise(r => setTimeout(r, 20000));
+                    return await this.detectAIGenerated(binaryData, apiKey);
+                }
+                throw new Error(`API error: ${response.status}`);
             }
 
             const data = await response.json();
 
-            if (data.error) {
-                // Model might be loading
-                if (data.error.includes('loading')) {
-                    // Wait and retry
-                    await new Promise(r => setTimeout(r, 20000));
-                    return await this.detectAIContent(text, apiKey);
-                }
-                throw new Error(data.error);
-            }
+            let realScore = 50;
 
-            // Parse results - model returns labels like "LABEL_0" (fake) and "LABEL_1" (real)
-            // or "Real" and "Fake"
-            let humanScore = 50;
-
-            if (Array.isArray(data) && Array.isArray(data[0])) {
-                const results = data[0];
-                for (const result of results) {
-                    const label = result.label.toLowerCase();
-                    if (label === 'real' || label === 'label_1') {
-                        humanScore = Math.round(result.score * 100);
-                    }
-                }
-            } else if (Array.isArray(data)) {
-                for (const result of data) {
-                    const label = result.label.toLowerCase();
-                    if (label === 'real' || label === 'label_1') {
-                        humanScore = Math.round(result.score * 100);
+            if (Array.isArray(data)) {
+                for (const item of data) {
+                    const label = item.label?.toLowerCase() || '';
+                    if (label.includes('real') || label.includes('human') || label.includes('authentic')) {
+                        realScore = Math.round(item.score * 100);
                     }
                 }
             }
 
-            return { humanScore };
+            return { realScore };
 
         } catch (error) {
-            console.warn('AI Detection API error:', error);
+            console.warn('AI image detection error:', error);
             return null;
         }
     },
 
     /**
-     * Try alternative Hugging Face model
+     * Detect deepfakes using Hugging Face
      */
-    async tryAlternateModel(text, apiKey) {
+    async detectDeepfake(binaryData, apiKey) {
         try {
             const response = await fetch(
-                `${this.API_URL}Hello-SimpleAI/chatgpt-detector-roberta`,
+                `${this.API_URL}${this.MODELS.deepfakeDetector}`,
                 {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${apiKey}`
                     },
-                    body: JSON.stringify({
-                        inputs: text.substring(0, 2000)
-                    })
+                    body: binaryData
                 }
             );
 
-            if (!response.ok) return null;
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                if (errorData.error && errorData.error.includes('loading')) {
+                    await new Promise(r => setTimeout(r, 20000));
+                    return await this.detectDeepfake(binaryData, apiKey);
+                }
+                throw new Error(`API error: ${response.status}`);
+            }
 
             const data = await response.json();
-            let humanScore = 50;
 
-            if (Array.isArray(data) && data[0]) {
-                const results = Array.isArray(data[0]) ? data[0] : data;
-                for (const result of results) {
-                    const label = result.label.toLowerCase();
-                    if (label.includes('human') || label === 'label_0') {
-                        humanScore = Math.round(result.score * 100);
+            let realScore = 50;
+
+            if (Array.isArray(data)) {
+                for (const item of data) {
+                    const label = item.label?.toLowerCase() || '';
+                    if (label.includes('real') || label === 'real') {
+                        realScore = Math.round(item.score * 100);
                     }
                 }
             }
 
-            return { humanScore };
-        } catch {
+            return { realScore };
+
+        } catch (error) {
+            console.warn('Deepfake detection error:', error);
             return null;
         }
     },
 
     /**
-     * Fallback heuristic-based AI detection
+     * Analyze image metadata
      */
-    fallbackAIDetection(text) {
+    async analyzeMetadata(imageData) {
         const warnings = [];
-        let score = 75; // Start with slight lean toward authentic
+        let integrityScore = 70;
+        let metadataScore = 65;
 
-        const words = text.split(/\s+/);
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim());
-
-        // Check for repetitive sentence structure
-        const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
-        const avgLen = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
-        const variance = sentenceLengths.reduce((sum, len) =>
-            sum + Math.pow(len - avgLen, 2), 0) / sentenceLengths.length;
-
-        if (variance < 15) {
-            score -= 15;
-            warnings.push('Very uniform sentence lengths detected (common in AI text)');
+        // File size analysis
+        let fileSize = 0;
+        if (imageData instanceof File) {
+            fileSize = imageData.size;
+        } else if (imageData instanceof Blob) {
+            fileSize = imageData.size;
         }
 
-        // Check for overly formal/perfect grammar indicators
-        const formalPhrases = [
-            'it is important to note', 'it is worth mentioning',
-            'in conclusion', 'furthermore', 'moreover', 'additionally',
-            'it should be noted', 'one might argue', 'it is essential',
-            'in today\'s world', 'plays a crucial role',
-            'it is imperative', 'significantly', 'consequently'
-        ];
+        if (fileSize > 0) {
+            // Very small images might be heavily compressed (potential manipulation)
+            if (fileSize < 10000) {
+                integrityScore -= 10;
+                warnings.push('Very small file size may indicate heavy compression or modification');
+            }
 
-        const lowerText = text.toLowerCase();
-        let formalCount = 0;
-        formalPhrases.forEach(phrase => {
-            if (lowerText.includes(phrase)) formalCount++;
-        });
-
-        if (formalCount > 3) {
-            score -= 10;
-            warnings.push('Excessive use of formal transitional phrases');
+            // Typical file sizes for different formats
+            if (fileSize > 5 * 1024 * 1024) {
+                integrityScore += 5; // Large files less likely to be heavily modified
+            }
         }
 
-        // Check for lack of personal voice
-        const personalWords = ['i ', 'my ', 'me ', 'i\'m', 'i\'ve', 'personally'];
-        let personalCount = 0;
-        personalWords.forEach(word => {
-            const regex = new RegExp(`\\b${word}\\b`, 'gi');
-            const matches = lowerText.match(regex);
-            if (matches) personalCount += matches.length;
-        });
+        // Check image dimensions using canvas
+        try {
+            const img = await this.loadImage(imageData);
+            const width = img.naturalWidth || img.width;
+            const height = img.naturalHeight || img.height;
 
-        // Check vocabulary diversity (Type-Token Ratio)
-        const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, '')));
-        const ttr = uniqueWords.size / words.length;
+            // AI-generated images often have specific dimensions
+            const aiDimensions = [512, 768, 1024, 256, 2048];
+            if (aiDimensions.includes(width) && aiDimensions.includes(height)) {
+                metadataScore -= 15;
+                warnings.push(`Image dimensions (${width}×${height}) match common AI generation sizes`);
+            }
 
-        if (ttr < 0.4) {
-            score -= 10;
-            warnings.push('Low vocabulary diversity detected');
+            // Perfect square images are more common in AI generation
+            if (width === height && aiDimensions.includes(width)) {
+                metadataScore -= 10;
+                warnings.push('Perfect square dimensions common in AI-generated images');
+            }
+        } catch (e) {
+            console.warn('Could not analyze image dimensions');
         }
 
-        // Check for sensationalist language (fake news indicator)
-        const sensationalWords = [
-            'shocking', 'unbelievable', 'you won\'t believe',
-            'breaking', 'urgent', 'secret', 'they don\'t want you to know',
-            'exposed', 'bombshell', 'mind-blowing', 'conspiracy',
-            'mainstream media', 'cover up', 'whistleblower'
-        ];
+        integrityScore = Math.max(10, Math.min(95, integrityScore));
+        metadataScore = Math.max(10, Math.min(95, metadataScore));
 
-        let sensationalCount = 0;
-        sensationalWords.forEach(word => {
-            if (lowerText.includes(word)) sensationalCount++;
-        });
+        return { integrityScore, metadataScore, warnings };
+    },
 
-        if (sensationalCount > 2) {
-            score -= 15;
-            warnings.push('Sensationalist language patterns detected (potential misinformation)');
+    /**
+     * Analyze pixel patterns for manipulation detection
+     */
+    async analyzePixelPatterns(imageData) {
+        const warnings = [];
+        let score = 70;
+
+        try {
+            const img = await this.loadImage(imageData);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Scale down for analysis
+            const maxSize = 256;
+            const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+            canvas.width = Math.floor(img.width * scale);
+            canvas.height = Math.floor(img.height * scale);
+
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageDataObj.data;
+
+            // Analyze color distribution
+            const colorHistogram = new Array(256).fill(0);
+            const edgeMap = [];
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                const brightness = Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+                colorHistogram[brightness]++;
+            }
+
+            // Check for unusual color distribution (AI images often have smoother distributions)
+            const totalPixels = canvas.width * canvas.height;
+            let smoothnessScore = 0;
+            for (let i = 1; i < 255; i++) {
+                const diff = Math.abs(colorHistogram[i] - colorHistogram[i - 1]);
+                smoothnessScore += diff;
+            }
+
+            const normalizedSmoothness = smoothnessScore / totalPixels;
+
+            if (normalizedSmoothness < 0.3) {
+                score -= 10;
+                warnings.push('Unusually smooth color distribution (potential AI generation indicator)');
+            }
+
+            // Check for edge artifacts
+            let edgeCount = 0;
+            const width = canvas.width;
+
+            for (let y = 1; y < canvas.height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const idx = (y * width + x) * 4;
+                    const left = (y * width + (x - 1)) * 4;
+                    const right = (y * width + (x + 1)) * 4;
+                    const top = ((y - 1) * width + x) * 4;
+                    const bottom = ((y + 1) * width + x) * 4;
+
+                    const gx = Math.abs(pixels[right] - pixels[left]);
+                    const gy = Math.abs(pixels[bottom] - pixels[top]);
+                    const gradient = Math.sqrt(gx * gx + gy * gy);
+
+                    if (gradient > 50) edgeCount++;
+                }
+            }
+
+            const edgeDensity = edgeCount / totalPixels;
+
+            // Very low edge density can indicate AI smoothing
+            if (edgeDensity < 0.05) {
+                score -= 8;
+                warnings.push('Low edge density detected (possible over-smoothing)');
+            }
+
+            // Check for repeating patterns (common in AI artifacts)
+            let repeatCount = 0;
+            const sampleSize = Math.min(1000, totalPixels);
+            const step = Math.floor(pixels.length / 4 / sampleSize);
+
+            for (let i = 0; i < sampleSize - step; i++) {
+                const idx1 = i * 4 * step;
+                const idx2 = (i + step) * 4;
+                if (idx2 + 2 < pixels.length) {
+                    if (pixels[idx1] === pixels[idx2] &&
+                        pixels[idx1 + 1] === pixels[idx2 + 1] &&
+                        pixels[idx1 + 2] === pixels[idx2 + 2]) {
+                        repeatCount++;
+                    }
+                }
+            }
+
+            const repeatRatio = repeatCount / sampleSize;
+            if (repeatRatio > 0.3) {
+                score -= 10;
+                warnings.push('Repeating pixel patterns detected');
+            }
+
+        } catch (error) {
+            console.warn('Pixel analysis failed:', error);
+            score = 60; // Default when analysis fails
         }
 
-        // Check for excessive superlatives and absolutes
-        const absoluteWords = [
-            'always', 'never', 'every', 'all', 'none',
-            'completely', 'totally', 'absolutely', 'definitely',
-            'undoubtedly', 'certainly', 'obviously'
-        ];
-
-        let absoluteCount = 0;
-        absoluteWords.forEach(word => {
-            const regex = new RegExp(`\\b${word}\\b`, 'gi');
-            const matches = lowerText.match(regex);
-            if (matches) absoluteCount += matches.length;
-        });
-
-        if (absoluteCount > 5) {
-            score -= 8;
-            warnings.push('Excessive use of absolute/superlative language');
-        }
-
-        score = Math.max(5, Math.min(95, score));
-
+        score = Math.max(10, Math.min(95, score));
         return { score, warnings };
     },
 
     /**
-     * Linguistic analysis
+     * Load image from various sources
      */
-    async analyzeLinguistics(text) {
-        const words = text.split(/\s+/);
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim());
-        const warnings = [];
+    loadImage(imageData) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
 
-        // Vocabulary Richness (Type-Token Ratio)
-        const cleanWords = words.map(w => w.toLowerCase().replace(/[^a-z']/g, '')).filter(w => w.length > 0);
-        const uniqueWords = new Set(cleanWords);
-        const ttr = uniqueWords.size / cleanWords.length;
-        const vocabularyScore = Math.round(Math.min(ttr * 130, 95));
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Failed to load image'));
 
-        // Sentence Length Variation (Burstiness)
-        const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
-        const avgLen = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
-        const stdDev = Math.sqrt(
-            sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgLen, 2), 0) / sentenceLengths.length
-        );
-        const burstinessValue = Math.round(stdDev * 10) / 10;
-        const variationScore = Math.round(Math.min(stdDev * 8, 95));
-
-        // Simulated perplexity (based on word frequency patterns)
-        const wordFreq = {};
-        cleanWords.forEach(w => { wordFreq[w] = (wordFreq[w] || 0) + 1; });
-        const frequencies = Object.values(wordFreq).sort((a, b) => b - a);
-        const topFreqRatio = frequencies.slice(0, 10).reduce((a, b) => a + b, 0) / cleanWords.length;
-        const perplexityValue = Math.round((1 - topFreqRatio) * 100);
-
-        // Diversity score (combination)
-        const diversityScore = Math.round((vocabularyScore + variationScore) / 2);
-
-        // Generate warnings
-        if (variationScore < 35) {
-            warnings.push('Low sentence length variation (typical of AI-generated text)');
-        }
-
-        if (vocabularyScore < 35) {
-            warnings.push('Limited vocabulary diversity');
-        }
-
-        if (burstinessValue < 3) {
-            warnings.push('Unusually consistent writing rhythm');
-        }
-
-        return {
-            perplexity: perplexityValue > 60 ? 'High' : perplexityValue > 30 ? 'Medium' : 'Low',
-            burstiness: burstinessValue > 6 ? 'High' : burstinessValue > 3 ? 'Medium' : 'Low',
-            diversityScore,
-            variationScore,
-            vocabularyScore,
-            warnings
-        };
+            if (imageData instanceof File || imageData instanceof Blob) {
+                img.src = URL.createObjectURL(imageData);
+            } else if (typeof imageData === 'string') {
+                img.src = imageData;
+            } else {
+                // Try to get from preview
+                const previewImg = document.getElementById('previewImg');
+                if (previewImg && previewImg.src) {
+                    img.src = previewImg.src;
+                } else {
+                    reject(new Error('No valid image source'));
+                }
+            }
+        });
     },
 
     /**
-     * Pattern analysis
+     * Fallback when API is unavailable
      */
-    async analyzePatterns(text) {
-        const lowerText = text.toLowerCase();
-        const warnings = [];
-        let naturalScore = 70;
-        let credibilityScore = 70;
-
-        // Check for typical AI patterns
-        const aiPatterns = [
-            { pattern: /as an ai/gi, weight: -30, msg: 'Contains AI self-reference' },
-            { pattern: /i cannot|i can't (provide|generate|create)/gi, weight: -20, msg: 'Contains AI refusal patterns' },
-            { pattern: /\bdelve\b/gi, weight: -5, msg: 'Uses common AI vocabulary ("delve")' },
-            { pattern: /\blandscape\b.*\b(ever-changing|evolving|dynamic)\b/gi, weight: -5, msg: null },
-            { pattern: /in (today's|the modern|the current) (world|era|age|landscape)/gi, weight: -8, msg: 'Uses generic temporal phrases' },
-            { pattern: /it'?s (important|crucial|essential|vital) to (note|understand|recognize|remember)/gi, weight: -8, msg: null }
-        ];
-
-        aiPatterns.forEach(({ pattern, weight, msg }) => {
-            if (pattern.test(text)) {
-                naturalScore += weight;
-                if (msg) warnings.push(msg);
-            }
-        });
-
-        // Check for misinformation signals
-        const misinfoPatterns = [
-            { pattern: /share (this|before|with everyone)/gi, weight: -15, msg: 'Contains viral sharing prompts' },
-            { pattern: /(they|the government|media) (don'?t|doesn'?t|won'?t) (want|let) you (know|see)/gi, weight: -20, msg: 'Contains conspiracy language' },
-            { pattern: /100%|guaranteed|proven|scientifically proven/gi, weight: -10, msg: 'Makes absolute claims without sourcing' },
-            { pattern: /wake up|sheeple|open your eyes/gi, weight: -15, msg: 'Uses manipulation language' },
-            { pattern: /mainstream media|msm|big pharma|big tech/gi, weight: -10, msg: 'Uses anti-establishment rhetoric' }
-        ];
-
-        misinfoPatterns.forEach(({ pattern, weight, msg }) => {
-            if (pattern.test(text)) {
-                credibilityScore += weight;
-                if (msg) warnings.push(msg);
-            }
-        });
-
-        // Check for proper sourcing
-        const hasLinks = /(https?:\/\/|www\.)/gi.test(text);
-        const hasSourceMention = /(according to|study (published|found|shows)|researchers? (at|from)|journal of|university of)/gi.test(text);
-        const hasQuotes = /[""].*?[""]|".*?"/g.test(text);
-
-        if (hasSourceMention || hasLinks) credibilityScore += 10;
-        if (hasQuotes) credibilityScore += 5;
-
-        if (!hasSourceMention && !hasLinks && text.length > 500) {
-            credibilityScore -= 5;
-            warnings.push('No sources or references cited for claims made');
-        }
-
-        // Normalize scores
-        naturalScore = Math.max(5, Math.min(95, naturalScore));
-        credibilityScore = Math.max(5, Math.min(95, credibilityScore));
-
-        return { naturalScore, credibilityScore, warnings };
+    fallbackImageAnalysis() {
+        return {
+            score: 60,
+            warnings: ['API unavailable - using basic heuristic analysis']
+        };
     }
 };
